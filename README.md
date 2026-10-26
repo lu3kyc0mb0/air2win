@@ -1,4 +1,4 @@
-# Air2Win
+# <img width="25" height="25" alt="7629289" src="https://github.com/user-attachments/assets/09dac1c3-85e9-4354-9359-16026f926fd9" /> Air2Win
 
 Air2Win is a portable AirPlay receiver for Windows 10 (version 1809 or later) and Windows 11, x64. It receives iPhone and iPad screen mirroring and audio on the same local network. The interface uses Qt Quick; the controller is written in C++. A separate UxPlay process handles the AirPlay connection and opens video in its own window.
 
@@ -7,6 +7,11 @@ Air2Win is a portable AirPlay receiver for Windows 10 (version 1809 or later) an
 Download `dist/Air2Win-1.0.0-windows-x64.zip`, extract the entire `Air2Win` folder to a writable location, and open `Air2Win.exe`. Click **Start AirPlay services**, then choose the receiver from **Screen Mirroring** on an iPhone or iPad connected to the same network. If PIN protection is enabled, enter the code shown in the app.
 
 The app keeps settings and the receiver identity in `data/` beside the EXE. It does not install a service, add startup entries, or create firewall rules. See [Quick start](docs/QUICKSTART.md) for troubleshooting and limitations.
+
+## Screenshots
+
+<img width="432" height="307" alt="preview" src="https://github.com/user-attachments/assets/5a6d2acf-cb64-4ca1-aa90-d1dada6053ff" />
+
 
 ## Build on this computer
 
