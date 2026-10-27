@@ -40,6 +40,7 @@ try {
         New-Item -ItemType Directory -Force dist/Air2Win | Out-Null
         Copy-Item build-ui/Air2Win.exe dist/Air2Win/Air2Win.exe
         Run-Checked "$QtRoot/bin/windeployqt.exe" @('--release', '--verbose', '0', '--no-translations', '--no-system-d3d-compiler', '--no-opengl-sw', '--qmldir', "$projectRoot/qml", "$projectRoot/dist/Air2Win/Air2Win.exe")
+        Run-Checked $Python @('scripts/prune-qt.py')
         if (!$SkipReceiver) {
             Run-Checked $Python @('scripts/package-runtime.py', '--objdump', "$UcrtCompilerBin/objdump.exe")
         }

@@ -18,8 +18,6 @@ plugins = ["coreelements", "app", "playback", "typefindfunctions", "audioconvert
            "audioresample", "volume", "autodetect", "audioparsers", "videoparsersbad",
            "videoconvertscale", "d3d11", "wasapi", "libav", "level"]
 seeds = [(root / "work/build-uxplay/uxplay.exe", destination / "uxplay.exe")]
-for executable in ["gst-inspect-1.0.exe", "gst-launch-1.0.exe"]:
-    seeds.append((deps / "bin" / executable, destination / executable))
 for plugin in plugins:
     filename = "libgst" + plugin + ".dll"
     seeds.append((deps / "lib/gstreamer-1.0" / filename, destination / "plugins" / filename))
@@ -27,6 +25,7 @@ known = {p.name.lower(): p for p in (deps / "bin").glob("*.dll")}
 system = Path(os.environ["SystemRoot"]) / "System32"
 visited = set()
 missing = set()
+packaged = set()
 
 def copy_closure(source, target):
     if source.name.lower() in visited:
@@ -35,6 +34,7 @@ def copy_closure(source, target):
         raise RuntimeError("Missing runtime file: " + str(source))
     visited.add(source.name.lower())
     shutil.copy2(source, target)
+    packaged.add(target.resolve())
     output = subprocess.check_output([args.objdump, "-p", str(source)], text=True, errors="replace")
     for name in re.findall(r"DLL Name:\s*(\S+)", output):
         key = name.lower()
@@ -49,6 +49,10 @@ for source, target in seeds:
     copy_closure(source, target)
 if missing:
     raise SystemExit("Missing dependency DLLs: " + ", ".join(sorted(missing)))
+for folder in (destination, destination / "plugins"):
+    for existing in folder.iterdir():
+        if existing.is_file() and existing.suffix.lower() in (".dll", ".exe") and existing.resolve() not in packaged:
+            existing.unlink()
 shutil.copy2(root / "work/media-deps.lock.json", destination / "packages.lock.json")
 if (deps / "share/licenses").exists():
     shutil.copytree(deps / "share/licenses", destination / "licenses", dirs_exist_ok=True)
