@@ -74,7 +74,12 @@ ApplicationWindow {
                         Icon { kind: nav.modelData.icon; ink: window.page === nav.index ? "#007aff" : "#81818e"; anchors.verticalCenter: parent.verticalCenter; width: 20; height: 20 }
                         Text { text: nav.modelData.label; anchors.verticalCenter: parent.verticalCenter; color: window.page === nav.index ? "#0066d6" : "#6e6f7c"; font.pixelSize: 13; font.weight: window.page === nav.index ? Font.DemiBold : Font.Normal }
                     }
-                    background: Rectangle { radius: 11; color: window.page === nav.index ? "#e1ebf7" : nav.hovered ? "#e9e9f0" : "transparent"; border.color: nav.activeFocus ? "#8cbbf2" : "transparent"; Behavior on color { ColorAnimation { duration: 180 } } }
+                    background: Rectangle {
+                        radius: 11
+                        color: window.page === nav.index ? "#e1ebf7" : nav.hovered ? "#e9e9f0" : sidebar.color
+                        border.color: nav.activeFocus ? "#8cbbf2" : "transparent"
+                        Behavior on color { ColorAnimation { duration: 180 } }
+                    }
                 }
             }
         }
