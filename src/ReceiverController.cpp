@@ -74,6 +74,8 @@ ReceiverController::ReceiverController(QString root, QString backend, QObject *p
         if (m_job) { CloseHandle(m_job); m_job = nullptr; }
 #endif
         m_pin.clear();
+        m_nowPlaying.clear();
+        QFile::remove(m_data + "/now-playing-artwork");
         if (m_state == "stopping") transition("idle");
         else if (m_state != "error") transition("error", tr("The receiver exited (code %1). Check the log.").arg(code));
         else emit stateChanged();
@@ -171,6 +173,8 @@ void ReceiverController::start() {
     }
     config.close();
     m_pending.clear();
+    m_nowPlaying.clear();
+    QFile::remove(m_data + "/now-playing-artwork");
     m_pin = m_requirePin ? QString::number(QRandomGenerator::system()->bounded(1000, 10000)) : QString();
     auto env = QProcessEnvironment::systemEnvironment();
     const auto runtime = QFileInfo(m_backend).absolutePath();
@@ -185,7 +189,8 @@ void ReceiverController::start() {
     m_process.setWorkingDirectory(m_data);
     QStringList args{"-n", m_name, "-nh", "-rc", m_data + "/uxplayrc",
                      "-key", m_data + "/identity.key", "-s", "1920x1080", "-fps", "60",
-                     "-vs", "d3d11videosink", "-as", "wasapisink", "-p", "7000"};
+                     "-vs", "d3d11videosink", "-as", "wasapisink", "-p", "7000",
+                     "-ca", m_data + "/now-playing-artwork"};
     // Password mode asks again on connection; legacy -pin pairing can be cached.
     if (m_requirePin) args << "-pw" << m_pin;
     appendLine(tr("Starting the AirPlay receiver…"));
@@ -198,6 +203,7 @@ void ReceiverController::stop() {
     if (!active() || m_state == "stopping") return;
     m_startTimer.stop();
     transition("stopping");
+    m_nowPlaying.clear();
     m_process.write("stop\n");
     m_stopTimer.start();
 }
@@ -209,14 +215,21 @@ void ReceiverController::readOutput() {
         if (newline < 0) break;
         const auto line = QString::fromUtf8(m_pending.left(newline)).trimmed();
         m_pending.remove(0, newline + 1);
+        if (m_state == "stopping" || m_state == "error") {
+            if (!line.startsWith("AIR2WIN_")) appendLine(line);
+            continue;
+        }
+        if (m_nowPlaying.consumeLine(line, m_data + "/now-playing-artwork")) continue;
         appendLine(line);
-        if (m_state == "stopping" || m_state == "error") continue;
         if (line == "AIR2WIN_READY") { m_startTimer.stop(); transition("listening"); }
         else if (line == "AIR2WIN_STREAMING") transition("streaming");
-        else if (line == "AIR2WIN_IDLE" && (m_state == "streaming" || m_state == "listening")) transition("listening");
+        else if (line == "AIR2WIN_IDLE" && (m_state == "streaming" || m_state == "listening")) {
+            m_nowPlaying.clear();
+            transition("listening");
+        }
     }
-    if (m_pending.size() > 16384) {
-        appendLine(QString::fromUtf8(m_pending.left(16384)));
+    if (m_pending.size() > 128 * 1024) {
+        appendLine(tr("Discarded an oversized receiver message."));
         m_pending.clear();
     }
 }

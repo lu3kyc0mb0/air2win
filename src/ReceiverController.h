@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QTimer>
+#include "NowPlaying.h"
 
 class ReceiverController final : public QObject {
     Q_OBJECT
@@ -26,6 +27,7 @@ public:
     QString error() const { return m_error; }
     QString diagnostics() const { return m_lines.join('\n'); }
     QString localAddresses() const;
+    NowPlaying *nowPlaying() { return &m_nowPlaying; }
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
     Q_INVOKABLE bool saveSettings(const QString &name, bool requirePin);
@@ -46,5 +48,6 @@ private:
     QByteArray m_pending;
     QProcess m_process;
     QTimer m_startTimer, m_stopTimer;
+    NowPlaying m_nowPlaying{this};
     void *m_job = nullptr;
 };

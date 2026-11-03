@@ -77,5 +77,48 @@ replace('    raop_start_httpd(raop, &raop_port);', '''    if (raop_start_httpd(r
         LOGE("Air2Win: cannot open the receiver control port");
         exit(1);
     }''')
+replace('''extern "C" void audio_process (void *cls, raop_ntp_t *ntp, audio_decode_struct *data) {
+    air2win_media_received();''', '''extern "C" void audio_process (void *cls, raop_ntp_t *ntp, audio_decode_struct *data) {
+    air2win_media_received();
+    static gint64 last_audio_report = 0;
+    const gint64 now = g_get_monotonic_time();
+    if (now - last_audio_report >= 1000000) {
+        fprintf(stdout, "\\nAIR2WIN_AUDIO\\n");
+        last_audio_report = now;
+    }''')
+replace('''    printf("audio progress (min:sec): %3d:%2.2d; remaining: %3d:%2.2d; track length %d:%2.2d\\r",
+           position/60, position%60, remain/60, remain%60, duration/60, duration%60);''', '''    fprintf(stdout, "\\nAIR2WIN_PROGRESS %llu %llu\\n",
+            (unsigned long long)(curr - start) * 1000 / 44100,
+            (unsigned long long)(end - start) * 1000 / 44100);''')
+replace('''    if (curr < start || curr > end) {
+        return;
+    }
+    int duration = (int)  (end  - start)/44100;
+    int position = (int)  (curr - start)/44100;
+    int remain = duration - position;''', '''    // RTP timestamps wrap at 32 bits; compare unsigned deltas.
+    if (!(uint32_t)(end - start) || (uint32_t)(curr - start) > (uint32_t)(end - start)) return;''')
+replace('''        write_coverart(coverart_filename.c_str(), buffer, buflen);''', '''        if (buflen > 0 && buflen <= 8 * 1024 * 1024 &&
+            write_coverart(coverart_filename.c_str(), buffer, buflen) == (size_t) buflen) {
+            fprintf(stdout, "\\nAIR2WIN_ARTWORK\\n");
+        }''')
+replace('''    if (coverart_filename.length()) {
+        write_coverart(coverart_filename.c_str(), (const void *) empty_image, sizeof(empty_image));
+    }''', '''    if (coverart_filename.length()) {
+        write_coverart(coverart_filename.c_str(), (const void *) empty_image, sizeof(empty_image));
+        fprintf(stdout, "\\nAIR2WIN_ARTWORK\\n");
+    }''')
+replace('''    std::string metadata_text = "";
+    while (buflen >= 8) {''', '''    if (buflen <= 65528) {
+        gchar *encoded = g_base64_encode((const guchar *) buffer, buflen + 8);
+        fprintf(stdout, "\\nAIR2WIN_METADATA %s\\n", encoded);
+        g_free(encoded);
+    }
+    std::string metadata_text = "";
+    while (buflen >= 8) {''')
+replace('''        process_metadata(count, (const char *) dmap_tag, metadata, datalen, &metadata_text);''', '''        if (datalen < 0 || datalen > buflen) {
+            LOGE("Air2Win: invalid metadata item length");
+            return;
+        }
+        process_metadata(count, (const char *) dmap_tag, metadata, datalen, &metadata_text);''')
 path.write_text(text, encoding="utf-8", newline="\n")
 print("Patched UxPlay " + expected)

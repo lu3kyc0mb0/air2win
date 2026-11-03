@@ -9,6 +9,7 @@
 #include <QFontDatabase>
 #include <QLockFile>
 #include <QTimer>
+#include <QFile>
 #include <cstdio>
 
 int main(int argc, char *argv[]) {
@@ -51,12 +52,31 @@ int main(int argc, char *argv[]) {
     }
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("receiver", &receiver);
+    engine.rootContext()->setContextProperty("nowPlaying", receiver.nowPlaying());
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     bool qmlWarnings = false;
     QObject::connect(&engine, &QQmlApplicationEngine::warnings, &app,
                      [&](const QList<QQmlError> &) { qmlWarnings = true; });
     engine.loadFromModule("Air2Win", "Main");
+    const int playerCheck = app.arguments().indexOf("--player-smoke-test");
+    if (playerCheck >= 0) {
+        const auto args = app.arguments();
+        if (args.size() <= playerCheck + 2) return 1;
+        QFile metadata(args.at(playerCheck + 1));
+        if (!metadata.open(QIODevice::ReadOnly) || metadata.size() > 65536) return 1;
+        receiver.nowPlaying()->consumeLine("AIR2WIN_METADATA " + QString::fromLatin1(metadata.readAll().toBase64()));
+        receiver.nowPlaying()->consumeLine("AIR2WIN_ARTWORK", args.at(playerCheck + 2));
+        receiver.nowPlaying()->consumeLine("AIR2WIN_PROGRESS 42000 231000");
+        receiver.nowPlaying()->consumeLine("AIR2WIN_AUDIO");
+        QTimer::singleShot(1500, &app, [&] {
+            auto *player = engine.rootObjects().isEmpty() ? nullptr :
+                engine.rootObjects().first()->findChild<QQuickWindow *>("nowPlayingWindow");
+            const bool saved = player && player->isVisible() &&
+                player->grabWindow().save(root + "/data/preview-player.png");
+            app.exit(saved && !qmlWarnings ? 0 : 1);
+        });
+    }
     if (app.arguments().contains("--smoke-test")) {
         const bool checkReceiver = app.arguments().contains("--start-receiver");
         if (checkReceiver) receiver.start();

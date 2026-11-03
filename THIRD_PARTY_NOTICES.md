@@ -12,7 +12,7 @@ The separate `runtime/uxplay.exe` is built from
 `82ad05ce34ec862851fa6ab1240f50f58fb7fa5a`, with the changes in
 `scripts/patch-uxplay.py`. UxPlay is GPL-3.0; its bundled components also carry
 their own notices. Preserve its LICENSE and sources when distributing builds.
-The bridge adds line-based status output, graceful stdin shutdown, and failure
+The bridge adds line-based status, metadata, artwork notifications and progress output, graceful stdin shutdown, and failure
 handling for an unavailable control port. It does not claim Apple certification.
 
 ## UI and media libraries

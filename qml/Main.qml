@@ -14,11 +14,13 @@ ApplicationWindow {
     font.family: Qt.application.font.family
     font.pixelSize: 14
     property int page: 0
+    onClosing: player.close()
+    NowPlayingWindow { id: player; transientParent: window }
     readonly property bool receiverOn: ready || receiver.state === "starting"
     readonly property color activeColor: "#b6dfca"
     readonly property bool ready: receiver.state === "listening" || receiver.state === "streaming"
     readonly property string statusText: receiver.state === "listening" ? "Waiting for a device"
-        : receiver.state === "streaming" ? "Mirroring"
+        : receiver.state === "streaming" ? (nowPlaying.available ? "Playing audio" : "Mirroring")
         : receiver.state === "starting" ? "Starting AirPlay..."
         : receiver.state === "stopping" ? "Stopping..."
         : receiver.state === "error" ? "Check the log" : "Receiver off"
@@ -133,9 +135,17 @@ ApplicationWindow {
                         Behavior on scale { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
                     }
                     Text {
-                        text: receiver.state === "streaming" ? "Mirroring" : window.ready ? "Ready to connect" : receiver.state === "starting" ? "Starting…" : receiver.state === "stopping" ? "Stopping…" : "Receiver is off"
+                        text: receiver.state === "streaming" ? (nowPlaying.available ? "Playing audio" : "Mirroring") : window.ready ? "Ready to connect" : receiver.state === "starting" ? "Starting…" : receiver.state === "stopping" ? "Stopping…" : "Receiver is off"
                         color: "#283b33"; font.pixelSize: 19; font.weight: Font.Medium
                         anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    ActionButton {
+                        visible: nowPlaying.available
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "Now Playing"
+                        secondary: true
+                        implicitHeight: 36
+                        onClicked: player.present()
                     }
                 }
             }

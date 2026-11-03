@@ -8,6 +8,8 @@ Download `dist/Air2Win-1.0.0-windows-x64.zip`, extract the entire `Air2Win` fold
 
 The app keeps settings and the receiver identity in `data/` beside the EXE. It does not install a service, add startup entries, or create firewall rules. See [Quick start](docs/QUICKSTART.md) for troubleshooting and limitations.
 
+For music, select Air2Win in the iPhone or iPad audio output menu. When the sender supplies track metadata, a Now Playing window opens with artwork, title, artist, album, and progress. You can close it and reopen it using **Now Playing** on the main page. Metadata availability depends on the sending app; screen mirroring alone may not supply it. Playback is controlled on the phone.
+
 ## Screenshots
 
 <img width="432" height="307" alt="preview" src="https://github.com/user-attachments/assets/5a6d2acf-cb64-4ca1-aa90-d1dada6053ff" />
