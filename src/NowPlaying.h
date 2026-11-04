@@ -3,7 +3,9 @@
 #include <QColor>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QThread>
 #include "PlaybackRemote.h"
+class ArtworkLoader;
 
 class NowPlaying final : public QObject {
     Q_OBJECT
@@ -19,6 +21,7 @@ class NowPlaying final : public QObject {
     Q_PROPERTY(PlaybackRemote *controls READ controls CONSTANT)
 public:
     explicit NowPlaying(QObject *parent = nullptr);
+    ~NowPlaying() override;
     bool available() const { return !m_title.isEmpty() || !m_artist.isEmpty() || !m_album.isEmpty() || !m_artwork.isEmpty(); }
     QString title() const { return m_title; }
     QString artist() const { return m_artist; }
@@ -48,4 +51,8 @@ private:
     QElapsedTimer m_lastAudio;
     QTimer m_activityTimer;
     PlaybackRemote m_controls{this};
+    QThread m_artworkThread;
+    ArtworkLoader *m_artworkLoader = nullptr;
+    QByteArray m_artworkDigest;
+    quint64 m_artworkSerial = 0;
 };

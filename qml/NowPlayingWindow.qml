@@ -12,9 +12,52 @@ Window {
     maximumWidth: 400
     minimumHeight: 650
     maximumHeight: 650
-    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.MSWindowsFixedSizeDialogHint
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
     color: "#faf8f9"
-    onVisibleChanged: nowPlaying.controls.setMonitoring(visible)
+    readonly property bool playing: nowPlaying.controls.stateKnown ? nowPlaying.controls.playing : nowPlaying.receiving
+    property int frontCover: -1
+    property int pendingCover: -1
+    onVisibleChanged: {
+        nowPlaying.controls.setMonitoring(visible)
+        if (visible) { opening.restart(); detailsReveal.restart() }
+    }
+
+    function stageCover(source) {
+        fadeA.stop(); fadeB.stop()
+        if (!source.length) {
+            frontCover = -1; pendingCover = -1
+            coverA.source = ""; coverB.source = ""
+            coverA.opacity = 0; coverB.opacity = 0
+            return
+        }
+        pendingCover = frontCover === 0 ? 1 : 0
+        const incoming = pendingCover === 0 ? coverA : coverB
+        incoming.opacity = 0
+        incoming.z = 1
+        const previous = pendingCover === 0 ? coverB : coverA
+        previous.z = 0
+        if (frontCover >= 0) previous.opacity = 1
+        incoming.source = source
+        if (incoming.status === Image.Ready) activateCover(pendingCover)
+    }
+    function activateCover(slot) {
+        if (slot !== pendingCover || slot === frontCover) return
+        frontCover = slot
+        if (!visible) {
+            const incoming = slot === 0 ? coverA : coverB
+            incoming.opacity = 1
+            finishCover(slot)
+            return
+        }
+        if (slot === 0) fadeA.restart()
+        else fadeB.restart()
+    }
+    function finishCover(slot) {
+        if (frontCover !== slot) return
+        const previous = slot === 0 ? coverB : coverA
+        previous.opacity = 0
+        previous.source = ""
+    }
 
     component TransportButton: Button {
         id: control
@@ -23,14 +66,20 @@ Window {
         implicitHeight: 48
         hoverEnabled: true
         opacity: enabled ? 1 : 0.4
+        scale: down ? 0.9 : 1
+        Behavior on scale { ScaleAnimator { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on opacity { OpacityAnimator { duration: 140 } }
+        onSymbolChanged: glyphReveal.restart()
         contentItem: Item {
+            id: glyph
             Icon { anchors.centerIn: parent; width: 24; height: 24; kind: control.symbol; ink: "#64515e" }
         }
+        OpacityAnimator { id: glyphReveal; target: glyph; from: 0.4; to: 1; duration: 160 }
         background: Rectangle {
             radius: 24
             color: "#ede5eb"
             opacity: control.down ? 1 : control.hovered || control.activeFocus ? 0.7 : 0
-            Behavior on opacity { NumberAnimation { duration: 100 } }
+            Behavior on opacity { OpacityAnimator { duration: 140; easing.type: Easing.InOutSine } }
         }
         ToolTip.visible: hovered
         ToolTip.delay: 600
@@ -52,24 +101,34 @@ Window {
             if (nowPlaying.available) player.present()
             else player.close()
         }
+        function onArtworkChanged() { player.stageCover(nowPlaying.artwork) }
+        function onMetadataChanged() { if (player.visible) detailsReveal.restart() }
     }
 
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0; color: Qt.tint("#faf8f9", Qt.rgba(nowPlaying.accent.r, nowPlaying.accent.g, nowPlaying.accent.b, 0.14)) }
+            GradientStop {
+                position: 0
+                color: Qt.tint("#faf8f9", Qt.rgba(nowPlaying.accent.r, nowPlaying.accent.g, nowPlaying.accent.b, 0.14))
+                Behavior on color { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+            }
             GradientStop { position: 0.8; color: "#faf8f9" }
         }
     }
 
     ColumnLayout {
+        id: content
         anchors { fill: parent; margins: 28 }
         spacing: 0
 
         Item {
+            id: coverSurface
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 320
             Layout.preferredHeight: 320
+            scale: player.playing ? 1 : 0.96
+            Behavior on scale { ScaleAnimator { duration: 380; easing.type: Easing.OutCubic } }
             Rectangle {
                 anchors.fill: parent
                 radius: 16
@@ -82,51 +141,69 @@ Window {
                 }
             }
             Image {
-                id: cover
+                id: coverA
                 anchors.fill: parent
-                source: nowPlaying.artwork
                 sourceSize: Qt.size(688, 688)
                 asynchronous: true
-                cache: true
+                cache: false
                 fillMode: Image.PreserveAspectFit
-                onStatusChanged: if (status === Image.Ready) reveal.restart()
+                opacity: 0
+                onStatusChanged: if (status === Image.Ready) player.activateCover(0)
             }
-            NumberAnimation { id: reveal; target: cover; property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+            Image {
+                id: coverB
+                anchors.fill: parent
+                sourceSize: Qt.size(688, 688)
+                asynchronous: true
+                cache: false
+                fillMode: Image.PreserveAspectFit
+                opacity: 0
+                onStatusChanged: if (status === Image.Ready) player.activateCover(1)
+            }
+            OpacityAnimator { id: fadeA; target: coverA; from: 0; to: 1; duration: 320; easing.type: Easing.InOutCubic; onFinished: player.finishCover(0) }
+            OpacityAnimator { id: fadeB; target: coverB; from: 0; to: 1; duration: 320; easing.type: Easing.InOutCubic; onFinished: player.finishCover(1) }
         }
 
         Item { Layout.preferredHeight: 25 }
-        Text {
+        Item {
             Layout.fillWidth: true
-            text: nowPlaying.title || "AirPlay audio"
-            textFormat: Text.PlainText
-            font.family: Qt.application.font.family
-            font.pixelSize: 23
-            font.weight: Font.DemiBold
-            font.letterSpacing: -0.5
-            color: "#282329"
-            maximumLineCount: 2
-            wrapMode: Text.Wrap
-            elide: Text.ElideRight
-        }
-        Text {
-            Layout.fillWidth: true
-            Layout.topMargin: 5
-            text: nowPlaying.artist
-            textFormat: Text.PlainText
-            visible: text.length > 0
-            font.pixelSize: 16
-            color: "#6a5966"
-            elide: Text.ElideRight
-        }
-        Text {
-            Layout.fillWidth: true
-            Layout.topMargin: 3
-            text: nowPlaying.album
-            textFormat: Text.PlainText
-            visible: text.length > 0
-            font.pixelSize: 13
-            color: "#94858f"
-            elide: Text.ElideRight
+            Layout.preferredHeight: detailsColumn.implicitHeight
+            ColumnLayout {
+                id: detailsColumn
+                width: parent.width
+                spacing: 4
+                Text {
+                    Layout.fillWidth: true
+                    text: nowPlaying.title || "AirPlay audio"
+                    textFormat: Text.PlainText
+                    font.family: Qt.application.font.family
+                    font.pixelSize: 23
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: -0.5
+                    color: "#282329"
+                    maximumLineCount: 2
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: nowPlaying.artist
+                    textFormat: Text.PlainText
+                    visible: text.length > 0
+                    font.pixelSize: 16
+                    color: "#6a5966"
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: nowPlaying.album
+                    textFormat: Text.PlainText
+                    visible: text.length > 0
+                    font.pixelSize: 13
+                    color: "#94858f"
+                    elide: Text.ElideRight
+                }
+            }
         }
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
@@ -233,4 +310,11 @@ Window {
             Text { text: nowPlaying.receiving ? "Receiving audio" : "Connected"; font.pixelSize: 11; color: "#9d919a" }
         }
     }
+    OpacityAnimator { id: opening; target: content; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+    ParallelAnimation {
+        id: detailsReveal
+        OpacityAnimator { target: detailsColumn; from: 0.2; to: 1; duration: 220; easing.type: Easing.OutCubic }
+        YAnimator { target: detailsColumn; from: 5; to: 0; duration: 280; easing.type: Easing.OutCubic }
+    }
+
 }

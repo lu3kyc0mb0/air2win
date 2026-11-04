@@ -1,10 +1,7 @@
 #include "NowPlaying.h"
-#include <QBuffer>
+#include "ArtworkLoader.h"
+#include <QCryptographicHash>
 #include <QFile>
-#include <QImage>
-#include <QImageReader>
-#include <QPainter>
-#include <QPainterPath>
 #include <QtEndian>
 #include <algorithm>
 
@@ -20,9 +17,19 @@ NowPlaying::NowPlaying(QObject *parent) : QObject(parent) {
     });
 }
 
+NowPlaying::~NowPlaying() {
+    if (m_artworkLoader) {
+        m_artworkLoader->cancel(++m_artworkSerial);
+        m_artworkThread.quit();
+        m_artworkThread.wait();
+    }
+}
+
 void NowPlaying::clear() {
     const bool before = available();
     m_activityTimer.stop();
+    if (m_artworkLoader) m_artworkLoader->cancel(++m_artworkSerial);
+    m_artworkDigest.clear();
     m_title.clear(); m_artist.clear(); m_album.clear(); m_artwork.clear();
     m_accent = QColor("#786a72");
     m_position = m_duration = 0;
@@ -68,47 +75,26 @@ void NowPlaying::metadata(const QByteArray &bytes) {
 void NowPlaying::artworkFile(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.size() > 8 * 1024 * 1024) return;
-    QImageReader reader(&file);
-    if (reader.format() != "png" && reader.format() != "jpeg") return;
-    const auto size = reader.size();
-    if (!size.isValid() || size.width() > 8192 || size.height() > 8192 ||
-        qint64(size.width()) * size.height() > 32000000) return;
-    const bool before = available();
-    // UxPlay sends a one-pixel image to clear the previous cover.
-    if (size.width() <= 1 && size.height() <= 1) {
-        m_artwork.clear(); m_accent = QColor("#786a72");
-        emit artworkChanged();
-        if (before != available()) emit availableChanged();
-        return;
+    auto bytes = file.readAll();
+    const auto digest = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
+    if (digest == m_artworkDigest) return;
+    m_artworkDigest = digest;
+    if (!m_artworkLoader) {
+        m_artworkLoader = new ArtworkLoader;
+        m_artworkLoader->moveToThread(&m_artworkThread);
+        connect(&m_artworkThread, &QThread::finished, m_artworkLoader, &QObject::deleteLater);
+        connect(m_artworkLoader, &ArtworkLoader::prepared, this,
+                [this](quint64 serial, const QString &source, const QColor &accent) {
+            if (serial != m_artworkSerial || (m_artwork == source && m_accent == accent)) return;
+            const bool before = available();
+            m_artwork = source;
+            m_accent = accent;
+            emit artworkChanged();
+            if (before != available()) emit availableChanged();
+        });
+        m_artworkThread.start();
     }
-    reader.setAutoTransform(true);
-    reader.setScaledSize(size.scaled(688, 688, Qt::KeepAspectRatio));
-    const auto image = reader.read();
-    if (image.isNull()) return;
-    const auto thumbnail = image.scaled(1, 1, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    m_accent = thumbnail.pixelColor(0, 0);
-    // Rasterize the rounded cover once, instead of masking it in every GPU frame.
-    QImage prepared(688, 688, QImage::Format_ARGB32_Premultiplied);
-    prepared.fill(Qt::transparent);
-    {
-        QPainter painter(&prepared);
-        painter.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-        QPainterPath outline;
-        outline.addRoundedRect(QRectF(0, 0, 688, 688), 32, 32);
-        painter.setClipPath(outline);
-        const auto coverSize = image.size().scaled(688, 688, Qt::KeepAspectRatioByExpanding);
-        painter.drawImage(QRectF((688 - coverSize.width()) / 2.0, (688 - coverSize.height()) / 2.0,
-                                coverSize.width(), coverSize.height()), image);
-    }
-    QByteArray png;
-    QBuffer output(&png);
-    output.open(QIODevice::WriteOnly);
-    if (!prepared.save(&output, "PNG")) return;
-    const auto artwork = "data:image/png;base64," + QString::fromLatin1(png.toBase64());
-    if (m_artwork == artwork) return;
-    m_artwork = artwork;
-    emit artworkChanged();
-    if (before != available()) emit availableChanged();
+    m_artworkLoader->enqueue(std::move(bytes), ++m_artworkSerial);
 }
 
 void NowPlaying::setProgress(int positionMs, int durationMs) {
