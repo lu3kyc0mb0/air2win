@@ -30,7 +30,7 @@ void NowPlaying::clear() {
     m_activityTimer.stop();
     if (m_artworkLoader) m_artworkLoader->cancel(++m_artworkSerial);
     m_artworkDigest.clear();
-    m_title.clear(); m_artist.clear(); m_album.clear(); m_artwork.clear();
+    m_title.clear(); m_artist.clear(); m_album.clear(); m_artwork.clear(); m_background.clear();
     m_accent = QColor("#786a72");
     m_position = m_duration = 0;
     m_receiving = false;
@@ -84,10 +84,11 @@ void NowPlaying::artworkFile(const QString &path) {
         m_artworkLoader->moveToThread(&m_artworkThread);
         connect(&m_artworkThread, &QThread::finished, m_artworkLoader, &QObject::deleteLater);
         connect(m_artworkLoader, &ArtworkLoader::prepared, this,
-                [this](quint64 serial, const QString &source, const QColor &accent) {
+                [this](quint64 serial, const QString &source, const QColor &accent, const QString &background) {
             if (serial != m_artworkSerial || (m_artwork == source && m_accent == accent)) return;
             const bool before = available();
             m_artwork = source;
+            m_background = background;
             m_accent = accent;
             emit artworkChanged();
             if (before != available()) emit availableChanged();

@@ -1,39 +1,36 @@
 # <img width="25" height="25" alt="7629289" src="https://github.com/user-attachments/assets/09dac1c3-85e9-4354-9359-16026f926fd9" /> Air2Win
 
-Air2Win is a portable AirPlay receiver for Windows 10 (version 1809 or later) and Windows 11, x64. It receives iPhone and iPad screen mirroring and audio on the same local network. The interface uses Qt Quick; the controller is written in C++. A separate UxPlay process handles the AirPlay connection and opens video in its own window.
+Portable AirPlay screen mirroring and audio receiver for Windows 10 (1809+) / Windows 11, x64.
 
 ## Run
 
-Download `dist/Air2Win-1.0.0-windows-x64.zip`, extract the entire `Air2Win` folder to a writable location, and open `Air2Win.exe`. Click **Start AirPlay services**, then choose the receiver from **Screen Mirroring** on an iPhone or iPad connected to the same network. If PIN protection is enabled, enter the code shown in the app.
+1. Extract the whole `Air2Win-1.0.0-windows-x64.zip` archive.
+2. Open `Air2Win.exe` and click **Start AirPlay services**.
+3. Connect your iPhone/iPad and PC to the same network. Choose Air2Win in **Screen Mirroring** or the audio output menu.
 
-The app keeps settings and the receiver identity in `data/` beside the EXE. It does not install a service, add startup entries, or create firewall rules. See [Quick start](docs/QUICKSTART.md) for troubleshooting and limitations.
+Now Playing shows track information when provided by the sender. Playback controls and seeking depend on sender support. The pin keeps the player on top; **Air2Win** in its footer reopens the main window. Close both windows to exit.
 
-For music, select Air2Win in the iPhone or iPad audio output menu. When the sender supplies track metadata, a Now Playing window opens with artwork, title, artist, album, and progress. You can reopen it using **Now Playing** on the main page. Artwork is prepared on a worker thread and cached independently of progress updates, with a short crossfade between covers. Play/pause, previous/next, and seeking use the sender's DACP remote-control service when available. Some senders or apps do not provide it; use the phone in that case. Metadata may also be unavailable during screen mirroring.
+Settings and receiver identity stay in `data/` beside the EXE. No installation or background service is required. See [Quick start](docs/QUICKSTART.md) for troubleshooting.
 
-## Screenshots
+## Screenshot
 
 <img width="432" height="307" alt="preview" src="https://github.com/user-attachments/assets/5a6d2acf-cb64-4ca1-aa90-d1dada6053ff" />
 
+## Build
 
-## Build on this computer
-
-Open PowerShell in `F:\project\air2win`:
+On this computer, open PowerShell in the project folder:
 
 ```powershell
 .\scripts\build.ps1 -Package
 python scripts\archive.py
 ```
 
-The build script compiles the Qt app and UxPlay helper, runs the receiver tests, and assembles `dist/Air2Win/`. Keep that whole folder together. If only the C++/QML interface changed and the helper is already packaged, use `-SkipReceiver -Package` for a faster build. Close any running Air2Win instance before packaging.
+Close Air2Win before packaging. For interface-only changes, use `-SkipReceiver -Package`. Output: `dist/Air2Win/` and `dist/Air2Win-1.0.0-windows-x64.zip`; keep the complete application folder together.
 
-For QML changes, check syntax with `work\Qt\6.8.3\mingw_64\bin\qmllint.exe qml\Main.qml`. The script runs CTest automatically. `dist\Air2Win\Air2Win.exe --smoke-test` opens the UI and writes screenshots to `dist\Air2Win\data\`.
+Build dependencies: Qt 6.8.3 with MinGW 13.1, a MinGW UCRT compiler for UxPlay, Python, and the media libraries. Local tools are in `work/`.
 
-This checkout has its build tools in `work/`. Another development machine needs Qt 6.8.3, compatible MinGW 13.1, a MinGW UCRT compiler for UxPlay, Python, and the media dependencies. The `work/` directory is not part of the portable release.
+## Limits and licenses
 
-## Scope and compatibility
+Direct app video casting and DRM-protected video are unsupported. This build does not support Windows x86 or Windows 7/8.
 
-Version 1.0.0 supports screen mirroring and audio. Direct app video casting and DRM-protected video are outside its current scope. The shipped build targets Windows 10/11 x64. Windows x86 and Windows 7/8 require separate toolchains, dependency builds, and testing; this ZIP is not compatible with them.
-
-## Licenses
-
-The original shell code is MIT-licensed. The receiver helper and bundled libraries have separate licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). Air2Win is an independent project and is not certified by Apple.
+The app shell is [MIT-licensed](LICENSE). UxPlay and bundled libraries have separate licenses: [Third-party notices](THIRD_PARTY_NOTICES.md). Air2Win is an independent project, not certified by Apple.

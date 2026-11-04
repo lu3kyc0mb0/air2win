@@ -79,9 +79,24 @@ int main(int argc, char *argv[]) {
         QTimer::singleShot(1500, &app, [&] {
             auto *player = engine.rootObjects().isEmpty() ? nullptr :
                 engine.rootObjects().first()->findChild<QQuickWindow *>("nowPlayingWindow");
-            const bool saved = player && player->isVisible() && player->minimumSize() == player->maximumSize() &&
+            const bool saved = player && player->isVisible() && !player->transientParent() && player->minimumSize() == player->maximumSize() &&
                 player->grabWindow().save(root + "/data/preview-player.png");
-            app.exit(saved && !qmlWarnings ? 0 : 1);
+            if (!saved || qmlWarnings) { app.exit(1); return; }
+            auto *mainWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            mainWindow->showMinimized();
+            QTimer::singleShot(150, &app, [&, player, mainWindow] {
+                if (!player->isVisible() || player->visibility() == QWindow::Minimized) { app.exit(1); return; }
+                mainWindow->close();
+                player->setProperty("pinned", true);
+                QTimer::singleShot(150, &app, [&, player] {
+                    if (!player->isVisible() || !(player->flags() & Qt::WindowStaysOnTopHint)) { app.exit(1); return; }
+                    player->setProperty("pinned", false);
+                    QTimer::singleShot(150, &app, [&, player] {
+                        const bool independent = player->isVisible() && !(player->flags() & Qt::WindowStaysOnTopHint);
+                        app.exit(independent && !qmlWarnings ? 0 : 1);
+                    });
+                });
+            });
         });
     }
     if (app.arguments().contains("--smoke-test")) {

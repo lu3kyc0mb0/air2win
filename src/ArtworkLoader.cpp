@@ -3,6 +3,7 @@
 #include <QImageReader>
 #include <QPainter>
 #include <QPainterPath>
+#include <algorithm>
 
 void ArtworkLoader::enqueue(QByteArray bytes, quint64 serial) {
     m_latest.store(serial);
@@ -16,7 +17,7 @@ void ArtworkLoader::enqueue(QByteArray bytes, quint64 serial) {
         if (!size.isValid() || size.width() > 8192 || size.height() > 8192 ||
             qint64(size.width()) * size.height() > 32000000) return;
         if (size.width() <= 1 && size.height() <= 1) {
-            if (serial == m_latest.load()) emit prepared(serial, {}, QColor("#786a72"));
+            if (serial == m_latest.load()) emit prepared(serial, {}, QColor("#786a72"), {});
             return;
         }
         reader.setAutoTransform(true);
@@ -40,6 +41,27 @@ void ArtworkLoader::enqueue(QByteArray bytes, quint64 serial) {
         QBuffer output(&png);
         output.open(QIODevice::WriteOnly);
         if (!rounded.save(&output, "PNG") || serial != m_latest.load()) return;
-        emit prepared(serial, "data:image/png;base64," + QString::fromLatin1(png.toBase64()), accent);
+        // Bake a diffuse album backdrop once per cover, rather than blur a full window every frame.
+        auto backdrop = image.scaled(5, 5, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                            .scaled(96, 156, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                            .convertToFormat(QImage::Format_RGB32);
+        for (int y = 0; y < backdrop.height(); ++y) {
+            auto *row = reinterpret_cast<QRgb *>(backdrop.scanLine(y));
+            for (int x = 0; x < backdrop.width(); ++x) {
+                const QColor color(row[x]);
+                // Keep white text legible on bright covers while preserving their hue.
+                const double light = std::max({color.redF(), color.greenF(), color.blueF()});
+                const double gain = light > 0.42 ? 0.42 / light : 1.0;
+                row[x] = qRgb(12 + int(color.red() * gain * 0.88),
+                              12 + int(color.green() * gain * 0.88),
+                              16 + int(color.blue() * gain * 0.88));
+            }
+        }
+        QByteArray backgroundPng;
+        QBuffer backgroundOutput(&backgroundPng);
+        backgroundOutput.open(QIODevice::WriteOnly);
+        if (!backdrop.save(&backgroundOutput, "PNG") || serial != m_latest.load()) return;
+        emit prepared(serial, "data:image/png;base64," + QString::fromLatin1(png.toBase64()), accent,
+                      "data:image/png;base64," + QString::fromLatin1(backgroundPng.toBase64()));
     }, Qt::QueuedConnection);
 }

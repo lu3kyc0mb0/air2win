@@ -14,6 +14,7 @@ class NowPlaying final : public QObject {
     Q_PROPERTY(QString artist READ artist NOTIFY metadataChanged)
     Q_PROPERTY(QString album READ album NOTIFY metadataChanged)
     Q_PROPERTY(QString artwork READ artwork NOTIFY artworkChanged)
+    Q_PROPERTY(QString background READ background NOTIFY artworkChanged)
     Q_PROPERTY(QColor accent READ accent NOTIFY artworkChanged)
     Q_PROPERTY(int position READ position NOTIFY progressChanged)
     Q_PROPERTY(int duration READ duration NOTIFY progressChanged)
@@ -27,6 +28,7 @@ public:
     QString artist() const { return m_artist; }
     QString album() const { return m_album; }
     QString artwork() const { return m_artwork; }
+    QString background() const { return m_background; }
     QColor accent() const { return m_accent; }
     int position() const { return m_position; }
     int duration() const { return m_duration; }
@@ -44,7 +46,7 @@ private:
     void metadata(const QByteArray &bytes);
     void artworkFile(const QString &path);
     void setProgress(int positionMs, int durationMs);
-    QString m_title, m_artist, m_album, m_artwork;
+    QString m_title, m_artist, m_album, m_artwork, m_background;
     QColor m_accent{"#786a72"};
     int m_position = 0, m_duration = 0;
     bool m_receiving = false;

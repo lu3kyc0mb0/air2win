@@ -14,8 +14,11 @@ ApplicationWindow {
     font.family: Qt.application.font.family
     font.pixelSize: 14
     property int page: 0
-    onClosing: player.close()
-    NowPlayingWindow { id: player; transientParent: window }
+    NowPlayingWindow {
+        id: player
+        transientParent: null
+        onShowReceiverRequested: { window.showNormal(); window.raise(); window.requestActivate() }
+    }
     readonly property bool receiverOn: ready || receiver.state === "starting"
     readonly property color activeColor: "#b6dfca"
     readonly property bool ready: receiver.state === "listening" || receiver.state === "streaming"

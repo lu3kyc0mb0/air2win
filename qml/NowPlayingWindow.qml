@@ -12,8 +12,13 @@ Window {
     maximumWidth: 400
     minimumHeight: 650
     maximumHeight: 650
-    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
-    color: "#faf8f9"
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | (pinned ? Qt.WindowStaysOnTopHint : 0)
+    color: "#23252c"
+    property bool pinned: false
+    signal showReceiverRequested()
+    readonly property color primaryInk: "#ffffff"
+    readonly property color secondaryInk: "#c4ffffff"
+    readonly property color mutedInk: "#94ffffff"
     readonly property bool playing: nowPlaying.controls.stateKnown ? nowPlaying.controls.playing : nowPlaying.receiving
     property int frontCover: -1
     property int pendingCover: -1
@@ -28,6 +33,8 @@ Window {
             frontCover = -1; pendingCover = -1
             coverA.source = ""; coverB.source = ""
             coverA.opacity = 0; coverB.opacity = 0
+            backgroundA.source = ""; backgroundB.source = ""
+            backgroundA.opacity = 0; backgroundB.opacity = 0
             return
         }
         pendingCover = frontCover === 0 ? 1 : 0
@@ -37,6 +44,12 @@ Window {
         const previous = pendingCover === 0 ? coverB : coverA
         previous.z = 0
         if (frontCover >= 0) previous.opacity = 1
+        const backdrop = pendingCover === 0 ? backgroundA : backgroundB
+        const oldBackdrop = pendingCover === 0 ? backgroundB : backgroundA
+        backdrop.opacity = 0; backdrop.z = 1; oldBackdrop.z = 0
+        if (frontCover >= 0) oldBackdrop.opacity = 1
+        backdrop.source = nowPlaying.background
+        // Prepare both layers before a cached image can report Ready synchronously.
         incoming.source = source
         if (incoming.status === Image.Ready) activateCover(pendingCover)
     }
@@ -46,6 +59,8 @@ Window {
         if (!visible) {
             const incoming = slot === 0 ? coverA : coverB
             incoming.opacity = 1
+            const backdrop = slot === 0 ? backgroundA : backgroundB
+            backdrop.opacity = 1
             finishCover(slot)
             return
         }
@@ -57,6 +72,8 @@ Window {
         const previous = slot === 0 ? coverB : coverA
         previous.opacity = 0
         previous.source = ""
+        const previousBackdrop = slot === 0 ? backgroundB : backgroundA
+        previousBackdrop.opacity = 0; previousBackdrop.source = ""
     }
 
     component TransportButton: Button {
@@ -72,12 +89,12 @@ Window {
         onSymbolChanged: glyphReveal.restart()
         contentItem: Item {
             id: glyph
-            Icon { anchors.centerIn: parent; width: 24; height: 24; kind: control.symbol; ink: "#64515e" }
+            Icon { anchors.centerIn: parent; width: 24; height: 24; kind: control.symbol; ink: player.primaryInk }
         }
         OpacityAnimator { id: glyphReveal; target: glyph; from: 0.4; to: 1; duration: 160 }
         background: Rectangle {
             radius: 24
-            color: "#ede5eb"
+            color: "#24ffffff"
             opacity: control.down ? 1 : control.hovered || control.activeFocus ? 0.7 : 0
             Behavior on opacity { OpacityAnimator { duration: 140; easing.type: Easing.InOutSine } }
         }
@@ -102,19 +119,17 @@ Window {
             else player.close()
         }
         function onArtworkChanged() { player.stageCover(nowPlaying.artwork) }
-        function onMetadataChanged() { if (player.visible) detailsReveal.restart() }
+        function onMetadataChanged() {
+            confirmation.stop()
+            seekBar.awaitingPosition = false
+            if (player.visible) detailsReveal.restart()
+        }
     }
 
-    Rectangle {
+    Item {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: Qt.tint("#faf8f9", Qt.rgba(nowPlaying.accent.r, nowPlaying.accent.g, nowPlaying.accent.b, 0.14))
-                Behavior on color { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-            }
-            GradientStop { position: 0.8; color: "#faf8f9" }
-        }
+        Image { id: backgroundA; anchors.fill: parent; smooth: true; cache: false; opacity: 0 }
+        Image { id: backgroundB; anchors.fill: parent; smooth: true; cache: false; opacity: 0 }
     }
 
     ColumnLayout {
@@ -132,6 +147,8 @@ Window {
             Rectangle {
                 anchors.fill: parent
                 radius: 16
+                // A backing rectangle leaks through filtered artwork edges at fractional DPI.
+                visible: player.frontCover < 0
                 color: "#eeeaed"
                 Text {
                     anchors.centerIn: parent
@@ -160,8 +177,18 @@ Window {
                 opacity: 0
                 onStatusChanged: if (status === Image.Ready) player.activateCover(1)
             }
-            OpacityAnimator { id: fadeA; target: coverA; from: 0; to: 1; duration: 320; easing.type: Easing.InOutCubic; onFinished: player.finishCover(0) }
-            OpacityAnimator { id: fadeB; target: coverB; from: 0; to: 1; duration: 320; easing.type: Easing.InOutCubic; onFinished: player.finishCover(1) }
+            ParallelAnimation {
+                id: fadeA
+                OpacityAnimator { target: coverA; from: 0; to: 1; duration: 420; easing.type: Easing.InOutCubic }
+                OpacityAnimator { target: backgroundA; from: 0; to: 1; duration: 420; easing.type: Easing.InOutCubic }
+                onFinished: player.finishCover(0)
+            }
+            ParallelAnimation {
+                id: fadeB
+                OpacityAnimator { target: coverB; from: 0; to: 1; duration: 420; easing.type: Easing.InOutCubic }
+                OpacityAnimator { target: backgroundB; from: 0; to: 1; duration: 420; easing.type: Easing.InOutCubic }
+                onFinished: player.finishCover(1)
+            }
         }
 
         Item { Layout.preferredHeight: 25 }
@@ -180,7 +207,7 @@ Window {
                     font.pixelSize: 23
                     font.weight: Font.DemiBold
                     font.letterSpacing: -0.5
-                    color: "#282329"
+                    color: player.primaryInk
                     maximumLineCount: 2
                     wrapMode: Text.Wrap
                     elide: Text.ElideRight
@@ -191,7 +218,7 @@ Window {
                     textFormat: Text.PlainText
                     visible: text.length > 0
                     font.pixelSize: 16
-                    color: "#6a5966"
+                    color: player.secondaryInk
                     elide: Text.ElideRight
                 }
                 Text {
@@ -200,7 +227,7 @@ Window {
                     textFormat: Text.PlainText
                     visible: text.length > 0
                     font.pixelSize: 13
-                    color: "#94858f"
+                    color: player.mutedInk
                     elide: Text.ElideRight
                 }
             }
@@ -257,21 +284,21 @@ Window {
                 }
                 background: Rectangle {
                     x: seekBar.leftPadding; y: (seekBar.height - height) / 2
-                    width: seekBar.availableWidth; height: 3; radius: 1.5; color: "#e4dfe3"
-                    Rectangle { width: parent.width * seekBar.visualPosition; height: 3; radius: 1.5; color: "#8c7885" }
+                    width: seekBar.availableWidth; height: 3; radius: 1.5; color: "#40ffffff"
+                    Rectangle { width: parent.width * seekBar.visualPosition; height: 3; radius: 1.5; color: player.secondaryInk }
                 }
                 handle: Rectangle {
                     x: seekBar.leftPadding + seekBar.visualPosition * (seekBar.availableWidth - width)
                     y: (seekBar.height - height) / 2
-                    width: 9; height: 9; radius: 4.5; color: "#8c7885"
+                    width: 9; height: 9; radius: 4.5; color: player.secondaryInk
                     visible: seekBar.enabled && (seekBar.hovered || seekBar.pressed || seekBar.activeFocus)
                 }
                 Accessible.name: "Playback position"
             }
             RowLayout {
                 Layout.fillWidth: true
-                Text { text: player.clock(seekBar.pressed ? seekBar.value : nowPlaying.position); font.pixelSize: 11; color: "#968c93"; Layout.fillWidth: true }
-                Text { text: "\u2212" + player.clock(Math.max(0, nowPlaying.duration - nowPlaying.position)); font.pixelSize: 11; color: "#968c93" }
+                Text { text: player.clock(seekBar.pressed ? seekBar.value : nowPlaying.position); font.pixelSize: 11; color: player.mutedInk; Layout.fillWidth: true }
+                Text { text: "\u2212" + player.clock(Math.max(0, nowPlaying.duration - nowPlaying.position)); font.pixelSize: 11; color: player.mutedInk }
             }
         }
 
@@ -295,7 +322,7 @@ Window {
             visible: nowPlaying.controls.error.length > 0
             text: nowPlaying.controls.error
             textFormat: Text.PlainText
-            color: "#a36363"
+            color: "#ffcdcd"
             font.pixelSize: 11
             elide: Text.ElideRight
         }
@@ -304,10 +331,32 @@ Window {
             Layout.fillWidth: true
             Layout.topMargin: 20
             spacing: 7
-            Image { source: "qrc:/branding/7629289.png"; Layout.preferredWidth: 15; Layout.preferredHeight: 15; mipmap: true }
-            Text { text: "AirPlay"; font.pixelSize: 12; font.weight: Font.Medium; color: "#93818c"; Layout.fillWidth: true }
+            Button {
+                text: "Air2Win"
+                implicitHeight: 30
+                leftPadding: 0; rightPadding: 8
+                contentItem: Text { text: parent.text; color: player.secondaryInk; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
+                background: Item {}
+                onClicked: player.showReceiverRequested()
+                ToolTip.visible: hovered
+                ToolTip.text: "Open receiver"
+                Layout.fillWidth: true
+            }
             Rectangle { implicitWidth: 5; implicitHeight: 5; radius: 2.5; color: nowPlaying.receiving ? "#5d9b79" : "#b3a9b0" }
-            Text { text: nowPlaying.receiving ? "Receiving audio" : "Connected"; font.pixelSize: 11; color: "#9d919a" }
+            Text { text: nowPlaying.receiving ? "Receiving audio" : "Connected"; font.pixelSize: 11; color: player.mutedInk }
+            Button {
+                id: pinButton
+                objectName: "pinButton"
+                checkable: true
+                checked: player.pinned
+                onToggled: player.pinned = checked
+                implicitWidth: 30; implicitHeight: 30
+                contentItem: Icon { kind: "pin"; ink: player.pinned ? player.primaryInk : player.mutedInk }
+                background: Rectangle { radius: 8; color: pinButton.checked ? "#30ffffff" : pinButton.hovered ? "#18ffffff" : "transparent" }
+                Accessible.name: player.pinned ? "Unpin window" : "Keep on top"
+                ToolTip.visible: hovered
+                ToolTip.text: player.pinned ? "Unpin window" : "Keep on top"
+            }
         }
     }
     OpacityAnimator { id: opening; target: content; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }

@@ -9,7 +9,7 @@ public:
     void enqueue(QByteArray bytes, quint64 serial);
     void cancel(quint64 serial) { m_latest.store(serial); }
 signals:
-    void prepared(quint64 serial, const QString &source, const QColor &accent);
+    void prepared(quint64 serial, const QString &source, const QColor &accent, const QString &background);
 private:
     std::atomic<quint64> m_latest{0};
 };

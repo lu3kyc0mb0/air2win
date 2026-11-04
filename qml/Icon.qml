@@ -6,6 +6,8 @@ Canvas {
     property color ink: "#747481"
     onInkChanged: requestPaint()
     onKindChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
     implicitWidth: 24
     implicitHeight: 24
     onPaint: {
@@ -17,7 +19,9 @@ Canvas {
         c.lineWidth = 1.6
         c.lineCap = "round"
         c.lineJoin = "round"
-        if (kind === "play") {
+        if (kind === "pin") {
+            c.beginPath(); c.moveTo(8,4); c.lineTo(16,4); c.moveTo(9,4); c.lineTo(9,10); c.lineTo(6,14); c.lineTo(18,14); c.lineTo(15,10); c.lineTo(15,4); c.moveTo(12,14); c.lineTo(12,21); c.stroke()
+        } else if (kind === "play") {
             c.beginPath(); c.moveTo(7,4); c.lineTo(20,12); c.lineTo(7,20); c.closePath(); c.fill()
         } else if (kind === "pause") {
             c.fillRect(6,4,4,16); c.fillRect(14,4,4,16)
