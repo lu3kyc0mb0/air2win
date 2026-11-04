@@ -17,7 +17,14 @@ Canvas {
         c.lineWidth = 1.6
         c.lineCap = "round"
         c.lineJoin = "round"
-        if (kind === "screen") {
+        if (kind === "play") {
+            c.beginPath(); c.moveTo(7,4); c.lineTo(20,12); c.lineTo(7,20); c.closePath(); c.fill()
+        } else if (kind === "pause") {
+            c.fillRect(6,4,4,16); c.fillRect(14,4,4,16)
+        } else if (kind === "previous" || kind === "next") {
+            if (kind === "previous") { c.translate(24,0); c.scale(-1,1) }
+            for (let x of [2,11]) { c.beginPath(); c.moveTo(x,6); c.lineTo(x+9,12); c.lineTo(x,18); c.closePath(); c.fill() }
+        } else if (kind === "screen") {
             c.beginPath(); c.moveTo(7, 19); c.lineTo(12, 14); c.lineTo(17, 19); c.closePath(); c.fill()
             c.beginPath(); c.moveTo(5, 17); c.lineTo(3, 17); c.lineTo(3, 4); c.lineTo(21, 4); c.lineTo(21, 17); c.lineTo(19, 17); c.stroke()
         } else if (kind === "settings") {

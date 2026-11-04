@@ -69,10 +69,17 @@ int main(int argc, char *argv[]) {
         receiver.nowPlaying()->consumeLine("AIR2WIN_ARTWORK", args.at(playerCheck + 2));
         receiver.nowPlaying()->consumeLine("AIR2WIN_PROGRESS 42000 231000");
         receiver.nowPlaying()->consumeLine("AIR2WIN_AUDIO");
+        if (args.size() > playerCheck + 3 && !args.at(playerCheck + 3).startsWith("--")) {
+            QFile discovery(args.at(playerCheck + 3));
+            if (!discovery.open(QIODevice::ReadOnly) || discovery.size() > 65535) return 1;
+            auto *controls = receiver.nowPlaying()->controls();
+            controls->setSession("AABB", "123456", QHostAddress::LocalHost);
+            controls->acceptDiscovery(discovery.readAll(), QHostAddress::LocalHost);
+        }
         QTimer::singleShot(1500, &app, [&] {
             auto *player = engine.rootObjects().isEmpty() ? nullptr :
                 engine.rootObjects().first()->findChild<QQuickWindow *>("nowPlayingWindow");
-            const bool saved = player && player->isVisible() &&
+            const bool saved = player && player->isVisible() && player->minimumSize() == player->maximumSize() &&
                 player->grabWindow().save(root + "/data/preview-player.png");
             app.exit(saved && !qmlWarnings ? 0 : 1);
         });

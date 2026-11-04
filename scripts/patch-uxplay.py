@@ -121,4 +121,19 @@ replace('''        process_metadata(count, (const char *) dmap_tag, metadata, da
         }
         process_metadata(count, (const char *) dmap_tag, metadata, datalen, &metadata_text);''')
 path.write_text(text, encoding="utf-8", newline="\n")
+raop_path = source / "lib/raop.c"
+raop_text = subprocess.check_output(["git", "-C", str(source), "show", "HEAD:lib/raop.c"]).decode()
+old = '                const char *dacp_id = http_request_get_header(request, "DACP-ID");'
+if raop_text.count(old) != 1:
+    raise RuntimeError("DACP bridge context missing")
+raop_text = raop_text.replace(old, old + '''
+                if (dacp_id && strlen(dacp_id) > 0 && strlen(dacp_id) <= 32 &&
+                    strspn(dacp_id, "0123456789abcdefABCDEF") == strlen(dacp_id) &&
+                    strlen(active_remote) > 0 && strlen(active_remote) <= 20 &&
+                    strspn(active_remote, "0123456789") == strlen(active_remote)) {
+                    char ip[80] = {0};
+                    utils_ipaddress_to_string(conn->remotelen, conn->remote, conn->zone_id, ip, sizeof(ip));
+                    fprintf(stdout, "\\nAIR2WIN_REMOTE %s %s %s\\n", dacp_id, active_remote, ip);
+                }''')
+raop_path.write_text(raop_text, encoding="utf-8", newline="\n")
 print("Patched UxPlay " + expected)

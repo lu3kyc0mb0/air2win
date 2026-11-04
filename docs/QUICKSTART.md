@@ -8,7 +8,7 @@
 
 The status changes to **Ready to connect** once the receiver starts. Mirroring opens in a separate window. For audio output, select the receiver in the iPhone or iPad audio output menu.
 
-For music sent through AirPlay audio, **Now Playing** opens automatically when track metadata arrives. It shows the supplied cover, title, artist, album, and progress. Reopen it from the main page if closed. Control playback on your phone; metadata and progress may be unavailable with some apps or during screen mirroring.
+For music sent through AirPlay audio, **Now Playing** window opens when track metadata arrives. It shows the supplied cover, title, artist, album, and progress. Reopen it from the main page if closed. Playback buttons appear when the sender advertises DACP remote control. The progress slider can seek when supported; rejected seeking becomes read-only. Otherwise control playback on your phone. Metadata and progress may be unavailable with some apps or during screen mirroring.
 
 ## If the receiver is not visible
 

@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Network Test)
 qt_standard_project_setup(REQUIRES 6.8)
 
-add_library(receiver STATIC src/ReceiverController.cpp src/ReceiverController.h src/NowPlaying.cpp src/NowPlaying.h)
+add_library(receiver STATIC src/ReceiverController.cpp src/ReceiverController.h src/NowPlaying.cpp src/NowPlaying.h src/PlaybackRemote.cpp src/PlaybackRemote.h)
 target_include_directories(receiver PUBLIC src)
 target_link_libraries(receiver PUBLIC Qt6::Core Qt6::Network Qt6::Gui)
 target_compile_definitions(receiver PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)

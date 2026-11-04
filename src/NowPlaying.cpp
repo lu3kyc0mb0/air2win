@@ -3,23 +3,21 @@
 #include <QFile>
 #include <QImage>
 #include <QImageReader>
+#include <QPainter>
+#include <QPainterPath>
 #include <QtEndian>
 #include <algorithm>
 
 NowPlaying::NowPlaying(QObject *parent) : QObject(parent) {
     m_activityTimer.setInterval(500);
+    connect(&m_controls, &PlaybackRemote::progressReceived, this, &NowPlaying::setProgress);
     connect(&m_activityTimer, &QTimer::timeout, this, [this] {
         if (m_receiving && m_lastAudio.elapsed() > 2500) {
             m_receiving = false;
             m_activityTimer.stop();
-            emit changed();
+            emit receivingChanged();
         }
     });
-}
-
-void NowPlaying::notify(bool wasAvailable) {
-    emit changed();
-    if (wasAvailable != available()) emit availableChanged();
 }
 
 void NowPlaying::clear() {
@@ -29,7 +27,9 @@ void NowPlaying::clear() {
     m_accent = QColor("#786a72");
     m_position = m_duration = 0;
     m_receiving = false;
-    notify(before);
+    m_controls.clear();
+    emit metadataChanged(); emit artworkChanged(); emit progressChanged(); emit receivingChanged();
+    if (before != available()) emit availableChanged();
 }
 
 void NowPlaying::metadata(const QByteArray &bytes) {
@@ -61,7 +61,8 @@ void NowPlaying::metadata(const QByteArray &bytes) {
     const bool before = available();
     m_title = title; m_artist = artist; m_album = album;
     m_position = m_duration = 0;
-    notify(before);
+    emit metadataChanged(); emit progressChanged();
+    if (before != available()) emit availableChanged();
 }
 
 void NowPlaying::artworkFile(const QString &path) {
@@ -76,21 +77,45 @@ void NowPlaying::artworkFile(const QString &path) {
     // UxPlay sends a one-pixel image to clear the previous cover.
     if (size.width() <= 1 && size.height() <= 1) {
         m_artwork.clear(); m_accent = QColor("#786a72");
-        notify(before);
+        emit artworkChanged();
+        if (before != available()) emit availableChanged();
         return;
     }
     reader.setAutoTransform(true);
-    reader.setScaledSize(size.scaled(640, 640, Qt::KeepAspectRatio));
+    reader.setScaledSize(size.scaled(688, 688, Qt::KeepAspectRatio));
     const auto image = reader.read();
     if (image.isNull()) return;
     const auto thumbnail = image.scaled(1, 1, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     m_accent = thumbnail.pixelColor(0, 0);
+    // Rasterize the rounded cover once, instead of masking it in every GPU frame.
+    QImage prepared(688, 688, QImage::Format_ARGB32_Premultiplied);
+    prepared.fill(Qt::transparent);
+    {
+        QPainter painter(&prepared);
+        painter.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+        QPainterPath outline;
+        outline.addRoundedRect(QRectF(0, 0, 688, 688), 32, 32);
+        painter.setClipPath(outline);
+        const auto coverSize = image.size().scaled(688, 688, Qt::KeepAspectRatioByExpanding);
+        painter.drawImage(QRectF((688 - coverSize.width()) / 2.0, (688 - coverSize.height()) / 2.0,
+                                coverSize.width(), coverSize.height()), image);
+    }
     QByteArray png;
     QBuffer output(&png);
     output.open(QIODevice::WriteOnly);
-    if (!image.save(&output, "PNG")) return;
-    m_artwork = "data:image/png;base64," + QString::fromLatin1(png.toBase64());
-    notify(before);
+    if (!prepared.save(&output, "PNG")) return;
+    const auto artwork = "data:image/png;base64," + QString::fromLatin1(png.toBase64());
+    if (m_artwork == artwork) return;
+    m_artwork = artwork;
+    emit artworkChanged();
+    if (before != available()) emit availableChanged();
+}
+
+void NowPlaying::setProgress(int positionMs, int durationMs) {
+    const int position = positionMs / 1000, duration = durationMs / 1000;
+    if (m_position == position && m_duration == duration) return;
+    m_position = position; m_duration = duration;
+    emit progressChanged();
 }
 
 bool NowPlaying::consumeLine(const QString &line, const QString &artworkPath) {
@@ -108,13 +133,15 @@ bool NowPlaying::consumeLine(const QString &line, const QString &artworkPath) {
         const qint64 position = parts.value(0).toLongLong(&positionOk);
         const qint64 duration = parts.value(1).toLongLong(&durationOk);
         if (parts.size() == 2 && positionOk && durationOk && duration > 0 && duration <= 86400000 && position >= 0 && position <= duration) {
-            m_position = int(position / 1000); m_duration = int(duration / 1000);
-            emit changed();
+            setProgress(int(position), int(duration));
         }
     } else if (line == "AIR2WIN_AUDIO") {
         m_lastAudio.restart();
         m_activityTimer.start();
-        if (!m_receiving) { m_receiving = true; emit changed(); }
+        if (!m_receiving) { m_receiving = true; emit receivingChanged(); }
+    } else if (line.startsWith("AIR2WIN_REMOTE ")) {
+        const auto parts = line.sliced(15).split(' ', Qt::SkipEmptyParts);
+        if (parts.size() == 3) m_controls.setSession(parts[0], parts[1], QHostAddress(parts[2]));
     } else return false;
     return true;
 }

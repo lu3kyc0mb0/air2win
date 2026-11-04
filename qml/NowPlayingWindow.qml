@@ -1,17 +1,41 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 
 Window {
     id: player
     objectName: "nowPlayingWindow"
     title: "Now Playing — Air2Win"
     width: 400
-    height: 598
-    minimumWidth: 360
-    minimumHeight: 560
+    height: 650
+    minimumWidth: 400
+    maximumWidth: 400
+    minimumHeight: 650
+    maximumHeight: 650
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.MSWindowsFixedSizeDialogHint
     color: "#faf8f9"
+    onVisibleChanged: nowPlaying.controls.setMonitoring(visible)
+
+    component TransportButton: Button {
+        id: control
+        required property string symbol
+        implicitWidth: 48
+        implicitHeight: 48
+        hoverEnabled: true
+        opacity: enabled ? 1 : 0.4
+        contentItem: Item {
+            Icon { anchors.centerIn: parent; width: 24; height: 24; kind: control.symbol; ink: "#64515e" }
+        }
+        background: Rectangle {
+            radius: 24
+            color: "#ede5eb"
+            opacity: control.down ? 1 : control.hovered || control.activeFocus ? 0.7 : 0
+            Behavior on opacity { NumberAnimation { duration: 100 } }
+        }
+        ToolTip.visible: hovered
+        ToolTip.delay: 600
+        ToolTip.text: text
+    }
 
     function present() {
         show()
@@ -43,19 +67,13 @@ Window {
         spacing: 0
 
         Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: width
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: 320
+            Layout.preferredHeight: 320
             Rectangle {
                 anchors.fill: parent
                 radius: 16
                 color: "#eeeaed"
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: "#30000000"
-                    shadowBlur: 0.5
-                    shadowVerticalOffset: 7
-                }
                 Text {
                     anchors.centerIn: parent
                     text: "\u266a"
@@ -67,32 +85,13 @@ Window {
                 id: cover
                 anchors.fill: parent
                 source: nowPlaying.artwork
-                sourceSize: Qt.size(720, 720)
+                sourceSize: Qt.size(688, 688)
                 asynchronous: true
-                cache: false
-                fillMode: Image.PreserveAspectCrop
-                visible: false
+                cache: true
+                fillMode: Image.PreserveAspectFit
                 onStatusChanged: if (status === Image.Ready) reveal.restart()
             }
-            Rectangle {
-                id: coverMask
-                anchors.fill: parent
-                radius: 16
-                layer.enabled: true
-                visible: false
-            }
-            MultiEffect {
-                id: coverEffect
-                anchors.fill: parent
-                source: cover
-                visible: cover.status === Image.Ready
-                maskEnabled: true
-                maskSource: coverMask
-                autoPaddingEnabled: false
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 0.01
-            }
-            NumberAnimation { id: reveal; target: coverEffect; property: "opacity"; from: 0; to: 1; duration: 260; easing.type: Easing.OutCubic }
+            NumberAnimation { id: reveal; target: cover; property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
         }
 
         Item { Layout.preferredHeight: 25 }
@@ -135,24 +134,93 @@ Window {
             Layout.fillWidth: true
             visible: nowPlaying.duration > 0
             spacing: 8
-            Rectangle {
+            Slider {
+                id: seekBar
                 Layout.fillWidth: true
-                implicitHeight: 3
-                radius: 1.5
-                color: "#e4dfe3"
-                Rectangle {
-                    width: parent.width * Math.min(1, nowPlaying.position / Math.max(1, nowPlaying.duration))
-                    height: parent.height
-                    radius: parent.radius
-                    color: "#8c7885"
-                    Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                implicitHeight: 18
+                from: 0
+                to: Math.max(1, nowPlaying.duration)
+                enabled: nowPlaying.controls.canSeek && !nowPlaying.controls.busy
+                property real dragPosition: 0
+                property bool awaitingPosition: false
+                function submit(position) {
+                    if (!enabled) return
+                    dragPosition = position
+                    awaitingPosition = true
+                    confirmation.restart()
+                    nowPlaying.controls.seek(Math.round(position))
                 }
+                Binding { target: seekBar; property: "value"; value: Math.min(seekBar.to, nowPlaying.position); when: !seekBar.pressed && !seekBar.awaitingPosition; restoreMode: Binding.RestoreNone }
+                Timer { id: confirmation; interval: 2500; onTriggered: seekBar.awaitingPosition = false }
+                Connections {
+                    target: nowPlaying
+                    function onProgressChanged() {
+                        if (seekBar.awaitingPosition && Math.abs(nowPlaying.position - seekBar.dragPosition) <= 2) {
+                            confirmation.stop()
+                            seekBar.awaitingPosition = false
+                        }
+                    }
+                }
+                Connections {
+                    target: nowPlaying.controls
+                    function onChanged() {
+                        if (!nowPlaying.controls.available || nowPlaying.controls.error.length > 0) {
+                            confirmation.stop()
+                            seekBar.awaitingPosition = false
+                        }
+                    }
+                }
+                onPressedChanged: {
+                    if (pressed) dragPosition = value
+                    else submit(dragPosition)
+                }
+                onMoved: {
+                    dragPosition = value
+                    if (!pressed) submit(value)
+                }
+                background: Rectangle {
+                    x: seekBar.leftPadding; y: (seekBar.height - height) / 2
+                    width: seekBar.availableWidth; height: 3; radius: 1.5; color: "#e4dfe3"
+                    Rectangle { width: parent.width * seekBar.visualPosition; height: 3; radius: 1.5; color: "#8c7885" }
+                }
+                handle: Rectangle {
+                    x: seekBar.leftPadding + seekBar.visualPosition * (seekBar.availableWidth - width)
+                    y: (seekBar.height - height) / 2
+                    width: 9; height: 9; radius: 4.5; color: "#8c7885"
+                    visible: seekBar.enabled && (seekBar.hovered || seekBar.pressed || seekBar.activeFocus)
+                }
+                Accessible.name: "Playback position"
             }
             RowLayout {
                 Layout.fillWidth: true
-                Text { text: player.clock(nowPlaying.position); font.pixelSize: 11; color: "#968c93"; Layout.fillWidth: true }
+                Text { text: player.clock(seekBar.pressed ? seekBar.value : nowPlaying.position); font.pixelSize: 11; color: "#968c93"; Layout.fillWidth: true }
                 Text { text: "\u2212" + player.clock(Math.max(0, nowPlaying.duration - nowPlaying.position)); font.pixelSize: 11; color: "#968c93" }
             }
+        }
+
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 8
+            spacing: 22
+            visible: nowPlaying.controls.available
+            enabled: !nowPlaying.controls.busy
+            TransportButton { symbol: "previous"; text: "Previous track"; onClicked: nowPlaying.controls.previous() }
+            TransportButton {
+                symbol: (nowPlaying.controls.stateKnown ? nowPlaying.controls.playing : nowPlaying.receiving) ? "pause" : "play"
+                text: symbol === "pause" ? "Pause" : "Play"
+                onClicked: nowPlaying.controls.playPause()
+            }
+            TransportButton { symbol: "next"; text: "Next track"; onClicked: nowPlaying.controls.next() }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: nowPlaying.controls.error.length > 0
+            text: nowPlaying.controls.error
+            textFormat: Text.PlainText
+            color: "#a36363"
+            font.pixelSize: 11
+            elide: Text.ElideRight
         }
 
         RowLayout {
