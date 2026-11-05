@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible problem with Air2Win.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, follow [SECURITY.md](https://github.com/lu3kyc0mb0/air2win/blob/main/SECURITY.md) instead of opening a public issue.
+        Check existing issues and the Quick start troubleshooting steps first.
+  - type: input
+    id: app_version
+    attributes:
+      label: Air2Win version and download source
+      description: Release tag, or Actions run URL / commit for a development build.
+      placeholder: "v1.0.0, GitHub Releases"
+    validations:
+      required: true
+  - type: input
+    id: windows_version
+    attributes:
+      label: Windows version and OS build
+      description: Run winver to find these details.
+      placeholder: "Windows 11, version ..., OS build ..."
+    validations:
+      required: true
+  - type: input
+    id: sender
+    attributes:
+      label: Sender device, OS version, and sending app
+      placeholder: "iPhone model, iOS version, app name/version (or not applicable)"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the connection mode (Screen Mirroring or AirPlay audio) and whether it happens every time.
+      placeholder: |
+        1. Start Air2Win...
+        2. On the sender...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: network
+    attributes:
+      label: Network and relevant settings
+      description: Wi-Fi/Ethernet, same or guest network, VPN, firewall changes, and whether PIN protection is enabled. Do not share your PIN or public IP address.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Copy relevant text from Air2Win's Log page, including startup and the failure. If unavailable, explain why. Remove device names, addresses, and other private information. Never attach the data folder or receiver identity keys.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots or additional context
+      description: Remove personal information before uploading screenshots.
