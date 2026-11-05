@@ -20,21 +20,10 @@ Settings and receiver identity stay in `data/` beside the EXE. No installation o
 
 GitHub Actions builds the complete portable ZIP on every push to `main`, on pull requests,
 and through **Actions → Windows build → Run workflow**. Download it from the run's
-**Artifacts** section (GitHub sign-in required). Development builds include the commit ID
-in their filename and are retained for 14 days.
+**Artifacts** section (GitHub sign-in required). Development downloads contain the
+application files directly and are retained for 14 days.
 
-To publish a release, update the version in `CMakeLists.txt`, commit and push it, then push
-a matching tag, for example:
-
-```powershell
-git tag v1.0.1
-git push origin v1.0.1
-```
-
-The tag must match the project version. A successful tag build automatically publishes
-the release and attaches the ZIP. No additional repository secrets are required.
-
-On this computer, open PowerShell in the project folder:
+To build in your computer, open PowerShell in the project folder:
 
 ```powershell
 .\scripts\build.ps1 -Package

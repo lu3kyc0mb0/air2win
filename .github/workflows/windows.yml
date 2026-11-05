@@ -80,11 +80,20 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           if ($env:GITHUB_REF.StartsWith('refs/tags/')) {
             python scripts/archive.py
-          } else {
-            python scripts/archive.py --suffix "dev-$($env:GITHUB_SHA.Substring(0, 7))"
           }
 
-      - name: Upload portable ZIP
+      - name: Upload portable folder
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Air2Win-windows-x64
+          path: dist/Air2Win/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+
+      - name: Upload release ZIP
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: Air2Win-windows-x64

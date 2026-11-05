@@ -10,13 +10,28 @@
 #include <QLockFile>
 #include <QTimer>
 #include <QFile>
+#include <QOpenGLContext>
 #include <cstdio>
 
+static void configureWindowRendering() {
+#ifdef Q_OS_WIN
+    if (qEnvironmentVariableIsSet("QSG_RHI_BACKEND") || qEnvironmentVariableIsSet("QT_QUICK_BACKEND")) return;
+    QOpenGLContext probe;
+    QSurfaceFormat format;
+    format.setVersion(3, 0);
+    probe.setFormat(format);
+    if (probe.create() && probe.format().majorVersion() >= 3) {
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+        if (!qEnvironmentVariableIsSet("QSG_RENDER_LOOP")) qputenv("QSG_RENDER_LOOP", "basic");
+    }
+#endif
+}
+
 int main(int argc, char *argv[]) {
-    // Keep Qt's optional disk shader/QML caches inside the portable directory.
     qputenv("QML_DISABLE_DISK_CACHE", "1");
     qputenv("QSG_RHI_DISABLE_DISK_CACHE", "1");
     QGuiApplication app(argc, argv);
+    configureWindowRendering();
     app.setApplicationName("Air2Win");
     app.setOrganizationName("Air2Win");
     app.setApplicationVersion("1.0.0");
