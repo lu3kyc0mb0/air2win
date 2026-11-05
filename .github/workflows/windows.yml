@@ -1,0 +1,117 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = [regex]::Match((Get-Content CMakeLists.txt -Raw), 'project\(Air2Win VERSION ([0-9]+\.[0-9]+\.[0-9]+)').Groups[1].Value
+          if ($env:RELEASE_TAG -cne "v$version") { throw "Tag must match CMakeLists.txt version: v$version" }
+
+      - name: Install build tools
+        run: python -m pip install 'aqtinstall==3.3.*' 'cmake>=3.24,<4' ninja backports.zstd
+
+      - name: Cache Qt
+        id: qt-cache
+        uses: actions/cache@v4
+        with:
+          path: work/Qt
+          key: qt-windows-6.8.3-mingw1310-v1
+
+      - name: Install Qt and its compiler
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m aqt install-qt windows desktop 6.8.3 win64_mingw -O work/Qt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m aqt install-tool windows desktop tools_mingw1310 qt.tools.win64_mingw1310 -O work/Qt
+
+      - name: Install receiver compiler
+        id: msys
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Fetch media dependencies
+        run: python scripts/fetch-media-deps.py
+
+      - name: Fetch pinned receiver source
+        uses: actions/checkout@v4
+        with:
+          repository: FDH2/UxPlay
+          ref: 82ad05ce34ec862851fa6ab1240f50f58fb7fa5a
+          path: work/uxplay
+          persist-credentials: false
+
+      - name: Build and package
+        env:
+          MSYS_ROOT: ${{ steps.msys.outputs.msys2-location }}
+        run: |
+          ./scripts/build.ps1 -Package -UcrtCompilerBin "$env:MSYS_ROOT/ucrt64/bin"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($env:GITHUB_REF.StartsWith('refs/tags/')) {
+            python scripts/archive.py
+          } else {
+            python scripts/archive.py --suffix "dev-$($env:GITHUB_SHA.Substring(0, 7))"
+          }
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Air2Win-windows-x64
+          path: dist/Air2Win-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Air2Win-windows-x64
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/*.zip --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/*.zip --verify-tag --title "Air2Win $RELEASE_TAG" --generate-notes
+          fi

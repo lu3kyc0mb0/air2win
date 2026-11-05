@@ -1,9 +1,20 @@
+import argparse
 from pathlib import Path
+import re
 from zipfile import ZipFile, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser()
+parser.add_argument('--suffix', default='', help='Optional build suffix, e.g. dev-abc1234')
+args = parser.parse_args()
+if args.suffix and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]*', args.suffix):
+    parser.error('Suffix must contain only letters, numbers, dots, and hyphens')
+version = re.search(r'project\(Air2Win VERSION (\d+\.\d+\.\d+)',
+                    (root / 'CMakeLists.txt').read_text()).group(1)
+if args.suffix:
+    version += '-' + args.suffix
 folder = root / "dist/Air2Win"
-archive = root / "dist/Air2Win-1.0.0-windows-x64.zip"
+archive = root / f"dist/Air2Win-{version}-windows-x64.zip"
 if not (folder / "Air2Win.exe").exists() or not (folder / "runtime/uxplay.exe").exists():
     raise SystemExit("Build the complete portable folder before creating an archive.")
 with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=6) as output:
