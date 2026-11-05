@@ -41,7 +41,7 @@ jobs:
 
       - name: Cache Qt
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: work/Qt
           key: qt-windows-6.8.3-mingw1310-v1
