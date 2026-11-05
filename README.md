@@ -12,9 +12,22 @@ Now Playing shows track information when provided by the sender. Playback contro
 
 Settings and receiver identity stay in `data/` beside the EXE. No installation or background service is required. See [Quick start](docs/QUICKSTART.md) for troubleshooting.
 
-## Screenshot
+## Screenshots
 
-<img width="432" height="307" alt="preview" src="https://github.com/user-attachments/assets/5a6d2acf-cb64-4ca1-aa90-d1dada6053ff" />
+<details>
+  <summary>Click to view</summary>
+
+  <p>
+    <img width="540" height="384" alt="Air2Win" src="https://github.com/user-attachments/assets/5975f5aa-14c9-46aa-83bc-a81515c08ced" />
+  </p>
+
+  <p>
+    <img width="160" height="272" alt="Now Playing" src="https://github.com/user-attachments/assets/cdd9be80-25d8-4fc9-8ad7-397954f380e7" />
+    <img width="160" height="272" alt="Now Playing" src="https://github.com/user-attachments/assets/d220be9e-cfc1-407b-ba30-5d131d706eb5" />
+    <img width="160" height="272" alt="Now Playing" src="https://github.com/user-attachments/assets/368da6b3-5ad7-4499-b521-f3d52a9633cf" />
+    <img width="160" height="272" alt="Now Playing" src="https://github.com/user-attachments/assets/890ca86a-5084-405c-b91a-d402f92f5814" />
+  </p>
+</details>
 
 ## Build
 
